@@ -6,6 +6,7 @@ Aquarea2mqttCompatible=false
 Aquarea2mqttPumpID=""
 Mqtt_topic_base="panasonic_heat_pump/main"
 Mqtt_set_base="panasonic_heat_pump/commands"
+Mqtt_autodiscovery_topic="homeassistant"
 ForceRefreshTime=300
 MqttServer="127.0.0.1"
 MqttPort="1883"
