@@ -9,7 +9,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -35,7 +34,6 @@ var CommandsToSend map[xid.ID][]byte
 var GPIO map[string]string
 var actData [95]string
 var config Config
-var sending bool
 var Serial serial.Port
 var err error
 var goodreads float64
@@ -43,11 +41,6 @@ var totalreads float64
 var readpercentage float64
 var SwitchTopics map[string]AutoDiscoverStruct
 var ClimateTopics map[string]AutoDiscoverStruct
-
-type command_struct struct {
-	value  [128]byte
-	length int
-}
 
 type TopicData struct {
 	TopicNumber        int
@@ -62,50 +55,69 @@ type TopicData struct {
 }
 
 type Config struct {
-	Readonly               bool
-	Loghex                 bool
-	Device                 string
-	ReadInterval           int
-	MqttServer             string
-	MqttPort               string
-	MqttLogin              string
-	Aquarea2mqttCompatible bool
-	Mqtt_topic_base        string
-	Mqtt_set_base          string
-	Aquarea2mqttPumpID     string
-	MqttPass               string
-	MqttClientID           string
-	MqttKeepalive          int
-	ForceRefreshTime       int
-	EnableCommand          bool
-	SleepAfterCommand      int
-	HAAutoDiscover         bool
+	Readonly                 bool
+	Loghex                   bool
+	Device                   string
+	ReadInterval             int
+	MqttServer               string
+	MqttPort                 string
+	MqttLogin                string
+	Aquarea2mqttCompatible   bool
+	Mqtt_topic_base          string
+	Mqtt_set_base            string
+	Aquarea2mqttPumpID       string
+	MqttPass                 string
+	MqttClientID             string
+	MqttKeepalive            int
+	ForceRefreshTime         int
+	EnableCommand            bool
+	SleepAfterCommand        int
+	HAAutoDiscover           bool
 }
 
-var cfgfile *string
-var topicfile *string
 var configfile string
 
-func fileExists(filename string) bool {
-	info, err := os.Stat(filename)
-	if os.IsNotExist(err) {
-		return false
-	}
-	return !info.IsDir()
-}
+// func fileExists(filename string) bool {
+// 	info, err := os.Stat(filename)
+// 	if os.IsNotExist(err) {
+// 		return false
+// 	}
+// 	return !info.IsDir()
+// }
 
 func SetGPIODebug() {
-	err := ioutil.WriteFile("/sys/class/gpio/export", []byte("2"), 0200)
-	err = ioutil.WriteFile("/sys/class/gpio/export", []byte("3"), 0200)
-	err = ioutil.WriteFile("/sys/class/gpio/export", []byte("13"), 0200)
-	err = ioutil.WriteFile("/sys/class/gpio/export", []byte("15"), 0200)
-	err = ioutil.WriteFile("/sys/class/gpio/export", []byte("10"), 0200)
-	err = ioutil.WriteFile("/sys/class/gpio/export", []byte("0"), 0200)
-	err = ioutil.WriteFile("/sys/class/gpio/export", []byte("1"), 0200)
-	err = ioutil.WriteFile("/sys/class/gpio/export", []byte("16"), 0200)
+	err := os.WriteFile("/sys/class/gpio/export", []byte("2"), 0200)
+	if err != nil {
+		log.Println(err.Error())
+	}
+	err = os.WriteFile("/sys/class/gpio/export", []byte("3"), 0200)
+	if err != nil {
+		log.Println(err.Error())
+	}
+	err = os.WriteFile("/sys/class/gpio/export", []byte("13"), 0200)
+	if err != nil {
+		log.Println(err.Error())
+	}
+	err = os.WriteFile("/sys/class/gpio/export", []byte("15"), 0200)
+	if err != nil {
+		log.Println(err.Error())
+	}
+	err = os.WriteFile("/sys/class/gpio/export", []byte("10"), 0200)
+	if err != nil {
+		log.Println(err.Error())
+	}
+	err = os.WriteFile("/sys/class/gpio/export", []byte("0"), 0200)
+	if err != nil {
+		log.Println(err.Error())
+	}
+	err = os.WriteFile("/sys/class/gpio/export", []byte("1"), 0200)
+	if err != nil {
+		log.Println(err.Error())
+	}
+	err = os.WriteFile("/sys/class/gpio/export", []byte("16"), 0200)
 
 	if err != nil {
-		fmt.Println(err.Error())
+		log.Println(err.Error())
 	}
 }
 
@@ -136,57 +148,117 @@ func GetGPIOStatus() {
 	if len(GPIO) > 1 {
 		fmt.Println(GPIO)
 		if GPIO["gpio-0"] == "lo" && GPIO["gpio-1"] == "lo" && GPIO["gpio-16"] == "hi" {
-			err = ioutil.WriteFile("/sys/class/gpio/gpio2/direction", []byte("high"), 644)
-			err = ioutil.WriteFile("/sys/class/gpio/gpio13/direction", []byte("high"), 644)
-			err = ioutil.WriteFile("/sys/class/gpio/gpio15/direction", []byte("high"), 644)
+			err = os.WriteFile("/sys/class/gpio/gpio2/direction", []byte("high"), 0644)
+			if err != nil {
+				log.Println("Couldn't write to gpio. Error:", err.Error())
+			}
+			err = os.WriteFile("/sys/class/gpio/gpio13/direction", []byte("high"), 0644)
+			if err != nil {
+				log.Println("Couldn't write to gpio. Error:", err.Error())
+			}
+			err = os.WriteFile("/sys/class/gpio/gpio15/direction", []byte("high"), 0644)
+			if err != nil {
+				log.Println("Couldn't write to gpio. Error:", err.Error())
+			}
 		}
 		if GPIO["gpio-0"] == "hi" || GPIO["gpio-1"] == "hi" || GPIO["gpio-16"] == "lo" {
-			err = ioutil.WriteFile("/sys/class/gpio/gpio2/direction", []byte("high"), 644)
-			err = ioutil.WriteFile("/sys/class/gpio/gpio13/direction", []byte("low"), 644)
-			err = ioutil.WriteFile("/sys/class/gpio/gpio15/direction", []byte("low"), 644)
+			err = os.WriteFile("/sys/class/gpio/gpio2/direction", []byte("high"), 0644)
+			if err != nil {
+				log.Println("Couldn't write to gpio. Error:", err.Error())
+			}
+			err = os.WriteFile("/sys/class/gpio/gpio13/direction", []byte("low"), 0644)
+			if err != nil {
+				log.Println("Couldn't write to gpio. Error:", err.Error())
+			}
+			err = os.WriteFile("/sys/class/gpio/gpio15/direction", []byte("low"), 0644)
+			if err != nil {
+				log.Println("Couldn't write to gpio. Error:", err.Error())
+			}
 		}
 		if GPIO["gpio-0"] == "hi" && GPIO["gpio-1"] == "hi" {
-			err = ioutil.WriteFile("/sys/class/gpio/gpio2/direction", []byte("low"), 644)
-			err = ioutil.WriteFile("/sys/class/gpio/gpio13/direction", []byte("high"), 644)
-			err = ioutil.WriteFile("/sys/class/gpio/gpio15/direction", []byte("high"), 644)
+			err = os.WriteFile("/sys/class/gpio/gpio2/direction", []byte("low"), 0644)
+			if err != nil {
+				log.Println("Couldn't write to gpio. Error:", err.Error())
+			}
+			err = os.WriteFile("/sys/class/gpio/gpio13/direction", []byte("high"), 0644)
+			if err != nil {
+				log.Println("Couldn't write to gpio. Error:", err.Error())
+			}
+			err = os.WriteFile("/sys/class/gpio/gpio15/direction", []byte("high"), 0644)
+			if err != nil {
+				log.Println("Couldn't write to gpio. Error:", err.Error())
+			}
 		}
 		if GPIO["gpio-0"] == "hi" && GPIO["gpio-16"] == "lo" {
-			err = ioutil.WriteFile("/sys/class/gpio/gpio2/direction", []byte("low"), 644)
-			err = ioutil.WriteFile("/sys/class/gpio/gpio13/direction", []byte("high"), 644)
-			err = ioutil.WriteFile("/sys/class/gpio/gpio15/direction", []byte("high"), 644)
+			err = os.WriteFile("/sys/class/gpio/gpio2/direction", []byte("low"), 0644)
+			if err != nil {
+				log.Println("Couldn't write to gpio. Error:", err.Error())
+			}
+			err = os.WriteFile("/sys/class/gpio/gpio13/direction", []byte("high"), 0644)
+			if err != nil {
+				log.Println("Couldn't write to gpio. Error:", err.Error())
+			}
+			err = os.WriteFile("/sys/class/gpio/gpio15/direction", []byte("high"), 0644)
+			if err != nil {
+				log.Println("Couldn't write to gpio. Error:", err.Error())
+			}
 		}
 		if GPIO["gpio-1"] == "hi" && GPIO["gpio-16"] == "lo" {
-			err = ioutil.WriteFile("/sys/class/gpio/gpio2/direction", []byte("low"), 644)
-			err = ioutil.WriteFile("/sys/class/gpio/gpio13/direction", []byte("high"), 644)
-			err = ioutil.WriteFile("/sys/class/gpio/gpio15/direction", []byte("high"), 644)
+			err = os.WriteFile("/sys/class/gpio/gpio2/direction", []byte("low"), 0644)
+			if err != nil {
+				log.Println("Couldn't write to gpio. Error:", err.Error())
+			}
+			err = os.WriteFile("/sys/class/gpio/gpio13/direction", []byte("high"), 0644)
+			if err != nil {
+				log.Println("Couldn't write to gpio. Error:", err.Error())
+			}
+			err = os.WriteFile("/sys/class/gpio/gpio15/direction", []byte("high"), 0644)
+			if err != nil {
+				log.Println("Couldn't write to gpio. Error:", err.Error())
+			}
 		}
 		if GPIO["gpio-0"] == "hi" && GPIO["gpio-1"] == "hi" && GPIO["gpio-16"] == "lo" {
-			err = ioutil.WriteFile("/sys/class/gpio/gpio2/direction", []byte("low"), 644)
-			err = ioutil.WriteFile("/sys/class/gpio/gpio13/direction", []byte("low"), 644)
-			err = ioutil.WriteFile("/sys/class/gpio/gpio15/direction", []byte("high"), 644)
+			err = os.WriteFile("/sys/class/gpio/gpio2/direction", []byte("low"), 0644)
+			if err != nil {
+				log.Println("Couldn't write to gpio. Error:", err.Error())
+			}
+			err = os.WriteFile("/sys/class/gpio/gpio13/direction", []byte("low"), 0644)
+			if err != nil {
+				log.Println("Couldn't write to gpio. Error:", err.Error())
+			}
+			err = os.WriteFile("/sys/class/gpio/gpio15/direction", []byte("high"), 0644)
+			if err != nil {
+				log.Println("Couldn't write to gpio. Error:", err.Error())
+			}
 			cmd := exec.Command("fwupdate", "sw")
 			out, err := cmd.CombinedOutput()
+			if err != nil {
+				fmt.Println("CombinedOutput finished with error:", err)
+			}
 			fmt.Println(out)
 			cmd = exec.Command("sync")
 			out, err = cmd.CombinedOutput()
+			if err != nil {
+				fmt.Println("CombinedOutput finished with error:", err)
+			}
 			fmt.Println(out)
 			cmd = exec.Command("reboot")
 			out, err = cmd.CombinedOutput()
-			fmt.Println(out)
 			if err != nil {
-				fmt.Println(err)
+				fmt.Println("CombinedOutput finished with error:", err)
 			}
+			fmt.Println(out)
 
 		}
 		if GPIO["gpio-10"] == "hi" {
-			err := ioutil.WriteFile("/sys/class/gpio/gpio3/direction", []byte("low"), 644)
+			err := os.WriteFile("/sys/class/gpio/gpio3/direction", []byte("low"), 0644)
 			if err != nil {
 				fmt.Println(err)
 			}
 
 		}
 		if GPIO["gpio-10"] == "lo" {
-			err := ioutil.WriteFile("/sys/class/gpio/gpio3/direction", []byte("high"), 644)
+			err := os.WriteFile("/sys/class/gpio/gpio3/direction", []byte("high"), 0644)
 			if err != nil {
 				fmt.Println(err)
 			}
@@ -269,7 +341,7 @@ func UpdatePassword() bool {
 		return true
 	} else {
 		_, _ = exec.Command("chmod", "+x", "/root/pass.sh").Output()
-		dat, _ := ioutil.ReadFile("/mnt/usb/GoHeishaMonPassword.new")
+		dat, _ := os.ReadFile("/mnt/usb/GoHeishaMonPassword.new")
 		fmt.Printf("updejtuje haslo na: %s", string(dat))
 		o, err := exec.Command("/root/pass.sh", string(dat)).Output()
 		if err != nil {
@@ -306,7 +378,7 @@ func UpdateConfigLoop(configfile string) {
 	}
 }
 
-func PublishTopicsToAutoDiscover(mclient mqtt.Client, token mqtt.Token) {
+func PublishTopicsToAutoDiscover(mclient mqtt.Client) {
 	for k, v := range AllTopics {
 		var m AutoDiscoverStruct
 		m.UID = fmt.Sprintf("Aquarea-%s-%d", config.MqttLogin, k)
@@ -338,9 +410,9 @@ func PublishTopicsToAutoDiscover(mclient mqtt.Client, token mqtt.Token) {
 		fmt.Println(err)
 		TOP := fmt.Sprintf("%s/%s/%s/config", config.Mqtt_topic_base, v.TopicType, strings.ReplaceAll(m.Name, " ", "_"))
 		fmt.Println("Publikuje do ", TOP, "warosc", string(Topic_Value))
-		token = mclient.Publish(TOP, byte(0), false, Topic_Value)
+		token := mclient.Publish(TOP, byte(0), false, Topic_Value)
 		if token.Wait() && token.Error() != nil {
-			fmt.Printf("Fail to publish, %v", token.Error())
+			log.Printf("Fail to publish, %v", token.Error())
 		}
 
 	}
@@ -357,9 +429,9 @@ func PublishTopicsToAutoDiscover(mclient mqtt.Client, token mqtt.Token) {
 		fmt.Println(err)
 		TOP := fmt.Sprintf("%s/%s/%s/config", config.Mqtt_topic_base, "switch", strings.ReplaceAll(vs.Name, " ", "_"))
 		fmt.Println("Publikuje do ", TOP, "warosc", string(Topic_Value))
-		token = mclient.Publish(TOP, byte(0), false, Topic_Value)
+		token := mclient.Publish(TOP, byte(0), false, Topic_Value)
 		if token.Wait() && token.Error() != nil {
-			fmt.Printf("Fail to publish, %v", token.Error())
+			log.Printf("Fail to publish, %v", token.Error())
 		}
 	}
 
@@ -431,53 +503,120 @@ func ExecuteGPIOCommand() {
 		if len(GPIO) > 1 {
 			fmt.Println(GPIO)
 			if GPIO["gpio-0"] == "lo" && GPIO["gpio-1"] == "lo" && GPIO["gpio-16"] == "hi" {
-				err = ioutil.WriteFile("/sys/class/gpio/gpio2/direction", []byte("high"), 644)
-				err = ioutil.WriteFile("/sys/class/gpio/gpio13/direction", []byte("high"), 644)
-				err = ioutil.WriteFile("/sys/class/gpio/gpio15/direction", []byte("high"), 644)
+				err = os.WriteFile("/sys/class/gpio/gpio2/direction", []byte("high"), 0644)
+				if err != nil {
+					log.Println("Couldn't write to gpio. Error:", err.Error())
+				}
+				err = os.WriteFile("/sys/class/gpio/gpio13/direction", []byte("high"), 0644)
+				if err != nil {
+					log.Println("Couldn't write to gpio. Error:", err.Error())
+				}
+				err = os.WriteFile("/sys/class/gpio/gpio15/direction", []byte("high"), 0644)
+				if err != nil {
+					log.Println("Couldn't write to gpio. Error:", err.Error())
+				}
 			}
 			if GPIO["gpio-0"] == "hi" || GPIO["gpio-1"] == "hi" || GPIO["gpio-16"] == "lo" {
-				err = ioutil.WriteFile("/sys/class/gpio/gpio2/direction", []byte("high"), 644)
-				err = ioutil.WriteFile("/sys/class/gpio/gpio13/direction", []byte("low"), 644)
-				err = ioutil.WriteFile("/sys/class/gpio/gpio15/direction", []byte("low"), 644)
+				err = os.WriteFile("/sys/class/gpio/gpio2/direction", []byte("high"), 0644)
+				if err != nil {
+					log.Println("Couldn't write to gpio. Error:", err.Error())
+				}
+				err = os.WriteFile("/sys/class/gpio/gpio13/direction", []byte("low"), 0644)
+				if err != nil {
+					log.Println("Couldn't write to gpio. Error:", err.Error())
+				}
+				err = os.WriteFile("/sys/class/gpio/gpio15/direction", []byte("low"), 0644)
+				if err != nil {
+					log.Println("Couldn't write to gpio. Error:", err.Error())
+				}
 			}
 			if GPIO["gpio-0"] == "hi" && GPIO["gpio-1"] == "hi" {
-				err = ioutil.WriteFile("/sys/class/gpio/gpio2/direction", []byte("low"), 644)
-				err = ioutil.WriteFile("/sys/class/gpio/gpio13/direction", []byte("high"), 644)
-				err = ioutil.WriteFile("/sys/class/gpio/gpio15/direction", []byte("high"), 644)
+				err = os.WriteFile("/sys/class/gpio/gpio2/direction", []byte("low"), 0644)
+				if err != nil {
+					log.Println("Couldn't write to gpio. Error:", err.Error())
+				}
+				err = os.WriteFile("/sys/class/gpio/gpio13/direction", []byte("high"), 0644)
+				if err != nil {
+					log.Println("Couldn't write to gpio. Error:", err.Error())
+				}
+				err = os.WriteFile("/sys/class/gpio/gpio15/direction", []byte("high"), 0644)
+				if err != nil {
+					log.Println("Couldn't write to gpio. Error:", err.Error())
+				}
 			}
 			if GPIO["gpio-0"] == "hi" && GPIO["gpio-16"] == "lo" {
-				err = ioutil.WriteFile("/sys/class/gpio/gpio2/direction", []byte("low"), 644)
-				err = ioutil.WriteFile("/sys/class/gpio/gpio13/direction", []byte("high"), 644)
-				err = ioutil.WriteFile("/sys/class/gpio/gpio15/direction", []byte("high"), 644)
+				err = os.WriteFile("/sys/class/gpio/gpio2/direction", []byte("low"), 0644)
+				if err != nil {
+					log.Println("Couldn't write to gpio. Error:", err.Error())
+				}
+				err = os.WriteFile("/sys/class/gpio/gpio13/direction", []byte("high"), 0644)
+				if err != nil {
+					log.Println("Couldn't write to gpio. Error:", err.Error())
+				}
+				err = os.WriteFile("/sys/class/gpio/gpio15/direction", []byte("high"), 0644)
+				if err != nil {
+					log.Println("Couldn't write to gpio. Error:", err.Error())
+				}
 			}
 			if GPIO["gpio-1"] == "hi" && GPIO["gpio-16"] == "lo" {
-				err = ioutil.WriteFile("/sys/class/gpio/gpio2/direction", []byte("low"), 644)
-				err = ioutil.WriteFile("/sys/class/gpio/gpio13/direction", []byte("high"), 644)
-				err = ioutil.WriteFile("/sys/class/gpio/gpio15/direction", []byte("high"), 644)
+				err = os.WriteFile("/sys/class/gpio/gpio2/direction", []byte("low"), 0644)
+				if err != nil {
+					log.Println("Couldn't write to gpio. Error:", err.Error())
+				}
+				err = os.WriteFile("/sys/class/gpio/gpio13/direction", []byte("high"), 0644)
+				if err != nil {
+					log.Println("Couldn't write to gpio. Error:", err.Error())
+				}
+				err = os.WriteFile("/sys/class/gpio/gpio15/direction", []byte("high"), 0644)
+				if err != nil {
+					log.Println("Couldn't write to gpio. Error:", err.Error())
+				}
 			}
 			if GPIO["gpio-0"] == "hi" && GPIO["gpio-1"] == "hi" && GPIO["gpio-16"] == "lo" {
-				err = ioutil.WriteFile("/sys/class/gpio/gpio2/direction", []byte("low"), 644)
-				err = ioutil.WriteFile("/sys/class/gpio/gpio13/direction", []byte("low"), 644)
-				err = ioutil.WriteFile("/sys/class/gpio/gpio15/direction", []byte("high"), 644)
+				err = os.WriteFile("/sys/class/gpio/gpio2/direction", []byte("low"), 0644)
+				if err != nil {
+					log.Println("Couldn't write to gpio. Error:", err.Error())
+				}
+				err = os.WriteFile("/sys/class/gpio/gpio13/direction", []byte("low"), 0644)
+				if err != nil {
+					log.Println("Couldn't write to gpio. Error:", err.Error())
+				}
+				err = os.WriteFile("/sys/class/gpio/gpio15/direction", []byte("high"), 0644)
+				if err != nil {
+					log.Println("Couldn't write to gpio. Error:", err.Error())
+				}
 				cmd := exec.Command("fwupdate", "sw")
 				out, err := cmd.CombinedOutput()
+				if err != nil {
+					fmt.Println("CombinedOutput finished with error:", err)
+				}
 				fmt.Println(out)
 				cmd = exec.Command("sync")
 				out, err = cmd.CombinedOutput()
+				if err != nil {
+					fmt.Println("CombinedOutput finished with error:", err)
+				}
 				fmt.Println(out)
 				cmd = exec.Command("reboot")
 				out, err = cmd.CombinedOutput()
+				if err != nil {
+					fmt.Println("CombinedOutput finished with error:", err)
+				}
 				fmt.Println(out)
-				fmt.Println(err)
-
 			}
 			if GPIO["gpio-10"] == "hi" {
-				err := ioutil.WriteFile("/sys/class/gpio/gpio3/direction", []byte("low"), 644)
+				err := os.WriteFile("/sys/class/gpio/gpio3/direction", []byte("low"), 0644)
+				if err != nil {
+					log.Println("Couldn't write to gpio. Error:", err.Error())
+				}
 				fmt.Println(err)
 
 			}
 			if GPIO["gpio-10"] == "lo" {
-				err := ioutil.WriteFile("/sys/class/gpio/gpio3/direction", []byte("high"), 644)
+				err := os.WriteFile("/sys/class/gpio/gpio3/direction", []byte("high"), 0644)
+				if err != nil {
+					log.Println("Couldn't write to gpio. Error:", err.Error())
+				}
 				fmt.Println(err)
 
 			}
@@ -542,11 +681,11 @@ func main() {
 	ParseTopicList3()
 	MqttKeepalive = time.Second * time.Duration(config.MqttKeepalive)
 	MC, MT := MakeMQTTConn()
-	if config.HAAutoDiscover == true {
-		PublishTopicsToAutoDiscover(MC, MT)
+	if config.HAAutoDiscover {
+		PublishTopicsToAutoDiscover(MC)
 	}
 	for {
-		if MC.IsConnected() != true {
+		if !MC.IsConnected() {
 			MC, MT = MakeMQTTConn()
 		}
 		if len(CommandsToSend) > 0 {
@@ -592,7 +731,7 @@ func main() {
 func ClearActData() {
 	for {
 		time.Sleep(time.Second * time.Duration(config.ForceRefreshTime))
-		for k, _ := range actData {
+		for k := range actData {
 			actData[k] = "nil" //funny i know ;)
 		}
 
@@ -690,7 +829,7 @@ func startsub(c mqtt.Client) {
 
 	c.Subscribe(config.Mqtt_set_base+"/SetDHWTemp", 2, HandleSetDHWTemp)
 	c.Subscribe(config.Mqtt_set_base+"/SendRawValue", 2, HandleSendRawValue)
-	if config.EnableCommand == true {
+	if config.EnableCommand {
 		c.Subscribe(config.Mqtt_set_base+"/OSCommand", 2, HandleOSCommand)
 	}
 
@@ -701,9 +840,9 @@ func HandleMSGfromMQTT(mclient mqtt.Client, msg mqtt.Message) {
 
 }
 
-func remove(slice []string, s int) []string {
-	return append(slice[:s], slice[s+1:]...)
-}
+// func remove(slice []string, s int) []string {
+// 	return append(slice[:s], slice[s+1:]...)
+// }
 
 func HandleOSCommand(mclient mqtt.Client, msg mqtt.Message) {
 	var cmd *exec.Cmd
@@ -767,7 +906,7 @@ func HandleSetOperationMode(mclient mqtt.Client, msg mqtt.Message) {
 
 	fmt.Printf("set heat pump mode to  %d", set_mode)
 	command = []byte{0xf1, 0x6c, 0x01, 0x10, 0x00, 0x00, set_mode, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
-	if config.Loghex == true {
+	if config.Loghex {
 		logHex(command, len(command))
 	}
 	CommandsToSend[xid.New()] = command
@@ -787,7 +926,7 @@ func HandleSetDHWTemp(mclient mqtt.Client, msg mqtt.Message) {
 	heatpump_state = byte(e)
 	fmt.Printf("set DHW temperature to   %d", a)
 	command = []byte{0xf1, 0x6c, 0x01, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, heatpump_state, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
-	if config.Loghex == true {
+	if config.Loghex {
 		logHex(command, len(command))
 	}
 	CommandsToSend[xid.New()] = command
@@ -807,7 +946,7 @@ func HandleSetPowerfulMode(mclient mqtt.Client, msg mqtt.Message) {
 	heatpump_state = byte(e)
 	fmt.Printf("set powerful mode to  %d", a)
 	command = []byte{0xf1, 0x6c, 0x01, 0x10, 0x00, 0x00, 0x00, heatpump_state, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
-	if config.Loghex == true {
+	if config.Loghex {
 		logHex(command, len(command))
 	}
 	CommandsToSend[xid.New()] = command
@@ -829,7 +968,7 @@ func HandleSetHolidayMode(mclient mqtt.Client, msg mqtt.Message) {
 	heatpump_state = byte(e)
 	fmt.Printf("set holiday mode to  %d", heatpump_state)
 	command = []byte{0xf1, 0x6c, 0x01, 0x10, 0x00, heatpump_state, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
-	if config.Loghex == true {
+	if config.Loghex {
 		logHex(command, len(command))
 	}
 	CommandsToSend[xid.New()] = command
@@ -851,7 +990,7 @@ func HandleSetForceSterilization(mclient mqtt.Client, msg mqtt.Message) {
 	heatpump_state = byte(e)
 	fmt.Printf("set force sterilization  mode to %d", heatpump_state)
 	command = []byte{0xf1, 0x6c, 0x01, 0x10, 0x00, 0x00, 0x00, 0x00, heatpump_state, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
-	if config.Loghex == true {
+	if config.Loghex {
 		logHex(command, len(command))
 	}
 	CommandsToSend[xid.New()] = command
@@ -873,7 +1012,7 @@ func HandleSetForceDefrost(mclient mqtt.Client, msg mqtt.Message) {
 	heatpump_state = byte(e)
 	fmt.Printf("set force defrost mode to %d", heatpump_state)
 	command = []byte{0xf1, 0x6c, 0x01, 0x10, 0x00, 0x00, 0x00, 0x00, heatpump_state, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
-	if config.Loghex == true {
+	if config.Loghex {
 		logHex(command, len(command))
 	}
 	CommandsToSend[xid.New()] = command
@@ -895,7 +1034,7 @@ func HandleSetForceDHW(mclient mqtt.Client, msg mqtt.Message) {
 	heatpump_state = byte(e)
 	fmt.Printf("set force DHW mode to %d", heatpump_state)
 	command = []byte{0xf1, 0x6c, 0x01, 0x10, heatpump_state, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
-	if config.Loghex == true {
+	if config.Loghex {
 		logHex(command, len(command))
 	}
 	CommandsToSend[xid.New()] = command
@@ -914,7 +1053,7 @@ func HandleSetZ1HeatRequestTemperature(mclient mqtt.Client, msg mqtt.Message) {
 	request_temp = byte(e)
 	fmt.Printf("set z1 heat request temperature to %d", request_temp-128)
 	command = []byte{0xf1, 0x6c, 0x01, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, request_temp, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
-	if config.Loghex == true {
+	if config.Loghex {
 		logHex(command, len(command))
 	}
 	CommandsToSend[xid.New()] = command
@@ -932,7 +1071,7 @@ func HandleSetZ1CoolRequestTemperature(mclient mqtt.Client, msg mqtt.Message) {
 	request_temp = byte(e)
 	fmt.Printf("set z1 cool request temperature to %d", request_temp-128)
 	command = []byte{0xf1, 0x6c, 0x01, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, request_temp, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
-	if config.Loghex == true {
+	if config.Loghex {
 		logHex(command, len(command))
 	}
 	CommandsToSend[xid.New()] = command
@@ -950,7 +1089,7 @@ func HandleSetZ2HeatRequestTemperature(mclient mqtt.Client, msg mqtt.Message) {
 	request_temp = byte(e)
 	fmt.Printf("set z2 heat request temperature to %d", request_temp-128)
 	command = []byte{0xf1, 0x6c, 0x01, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, request_temp, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
-	if config.Loghex == true {
+	if config.Loghex {
 		logHex(command, len(command))
 	}
 	CommandsToSend[xid.New()] = command
@@ -968,7 +1107,7 @@ func HandleSetZ2CoolRequestTemperature(mclient mqtt.Client, msg mqtt.Message) {
 	request_temp = byte(e)
 	fmt.Printf("set z2 cool request temperature to %d", request_temp-128)
 	command = []byte{0xf1, 0x6c, 0x01, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, request_temp, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
-	if config.Loghex == true {
+	if config.Loghex {
 		logHex(command, len(command))
 	}
 	CommandsToSend[xid.New()] = command
@@ -988,7 +1127,7 @@ func HandleSetQuietMode(mclient mqtt.Client, msg mqtt.Message) {
 	quiet_mode = byte(e)
 	fmt.Printf("set Quiet mode to %d", quiet_mode/8-1)
 	command = []byte{0xf1, 0x6c, 0x01, 0x10, 0x00, 0x00, 0x00, quiet_mode, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
-	if config.Loghex == true {
+	if config.Loghex {
 		logHex(command, len(command))
 	}
 	CommandsToSend[xid.New()] = command
@@ -1011,7 +1150,7 @@ func HandleSetHeatpump(mclient mqtt.Client, msg mqtt.Message) {
 	heatpump_state = byte(e)
 	fmt.Printf("set heatpump state to %d", heatpump_state)
 	command = []byte{0xf1, 0x6c, 0x01, 0x10, heatpump_state, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
-	if config.Loghex == true {
+	if config.Loghex {
 		logHex(command, len(command))
 	}
 	CommandsToSend[xid.New()] = command
@@ -1039,7 +1178,7 @@ func calcChecksum(command []byte, length int) byte {
 func ParseTopicList2() {
 
 	// Loop through lines & turn into object
-	for key, _ := range AllTopics {
+	for key := range AllTopics {
 		var data TopicData
 		if _, err := toml.DecodeFile(configfile, &data); err != nil {
 			log.Fatal(err)
@@ -1053,19 +1192,21 @@ func ParseTopicList2() {
 
 func send_command(command []byte, length int) bool {
 
-	var chk byte
-	chk = calcChecksum(command, length)
+	var chk = calcChecksum(command, length)
 	var bytesSent int
 
 	bytesSent, err := Serial.Write(command) //first send command
-	_, err = Serial.Write([]byte{chk})      //then calculcated checksum byte afterwards
 	if err != nil {
-		fmt.Println(err)
+		log.Println("Couldn't write to Serial. Error:", err.Error())
+	}
+	_, err = Serial.Write([]byte{chk}) //then calculcated checksum byte afterwards
+	if err != nil {
+		log.Println("Couldn't write to Serial. Error:", err.Error())
 	}
 	log_msg := fmt.Sprintf("sent bytes: %d with checksum: %d ", bytesSent, int(chk))
 	log_message(log_msg)
 
-	if config.Loghex == true {
+	if config.Loghex {
 		logHex(command, length)
 	}
 	//readSerial()
@@ -1125,7 +1266,7 @@ func readSerial(MC mqtt.Client, MT mqtt.Token) bool {
 	readpercentage = ((goodreads / totalreads) * 100)
 	log_msg := fmt.Sprintf("Total reads : %f and total good reads : %f (%.2f %%)", totalreads, goodreads, readpercentage)
 	log_message(log_msg)
-	decode_heatpump_data(data, MC, MT)
+	decode_heatpump_data(data, MC)
 	token := MC.Publish(fmt.Sprintf("%s/LWT", config.Mqtt_set_base), byte(0), false, "Online")
 	if token.Wait() && token.Error() != nil {
 		fmt.Printf("Fail to publish, %v", token.Error())
@@ -1182,8 +1323,7 @@ func getIntMinus128(input byte) string {
 
 func getIntMinus1Div5(input byte) string {
 	value := int(input) - 1
-	var out float32
-	out = float32(value) / 5
+	var out = float32(value) / 5
 	return fmt.Sprintf("%.2f", out)
 
 }
@@ -1263,13 +1403,13 @@ func getErrorInfo(data []byte) string { // TOP44 //
 		Error_string = fmt.Sprintf("H%02X", Error_number)
 
 	default:
-		Error_string = fmt.Sprintf("No error")
+		Error_string = "No error"
 
 	}
 	return Error_string
 }
 
-func decode_heatpump_data(data []byte, mclient mqtt.Client, token mqtt.Token) {
+func decode_heatpump_data(data []byte, mclient mqtt.Client) {
 
 	var updatenow bool = false
 	m := map[string]func(byte) string{
@@ -1339,16 +1479,16 @@ func decode_heatpump_data(data []byte, mclient mqtt.Client, token mqtt.Token) {
 			if config.Aquarea2mqttCompatible {
 				TOP := "aquarea/state/" + fmt.Sprintf("%s/%s", config.Aquarea2mqttPumpID, v.TopicA2M)
 				value = strings.TrimSpace(Topic_Value)
-				value = strings.ToUpper(Topic_Value)
+				value = strings.ToUpper(value)
 				fmt.Println("Publikuje do ", TOP, "warosc", string(value))
-				token = mclient.Publish(TOP, byte(0), false, value)
+				token := mclient.Publish(TOP, byte(0), false, value)
 				if token.Wait() && token.Error() != nil {
 					fmt.Printf("Fail to publish, %v", token.Error())
 				}
 			}
 			TOP := fmt.Sprintf("%s/%s", config.Mqtt_topic_base, v.TopicName)
 			fmt.Println("Publikuje do ", TOP, "warosc", string(Topic_Value))
-			token = mclient.Publish(TOP, byte(0), false, Topic_Value)
+			token := mclient.Publish(TOP, byte(0), false, Topic_Value)
 			if token.Wait() && token.Error() != nil {
 				fmt.Printf("Fail to publish, %v", token.Error())
 			}
