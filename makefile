@@ -42,10 +42,6 @@ run:
 
 deps:   ## create dist
 deps:
-	$(GOGET) github.com/eclipse/paho.mqtt.golang
-	$(GOGET) go.bug.st/serial
-	$(GOGET) github.com/BurntSushi/toml
-	$(GOGET) github.com/rs/xid
 	mkdir dist
 
 build-linux:    ## build for linux
